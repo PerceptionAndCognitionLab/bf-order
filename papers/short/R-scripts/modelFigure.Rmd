@@ -1,0 +1,266 @@
+```{r Settings, warning=F, message=F}
+#Settings
+# library("spatialfil")
+# library("ggplot2")
+# library("papaja")
+# library("msm")
+# library("shape")
+# library("mvtnorm")
+# library("tmvtnorm")
+# library("cowplot")
+# library("gridExtra")
+
+theme_set(theme_apa())
+rotate <- function(x) t(apply(x, 2, rev))
+
+sd0 <- .09
+eta <- .7
+
+gamma <- seq(-.25, .25, .005)
+
+kern <- convKernel(sigma = 8, k = "gaussian")
+
+nrmlz <- function(mat)
+{
+  tot <- sum(mat)
+  mat/tot
+}
+
+#Conditional model specification
+norm0 <- function(theta1, theta2, Sigma) dnorm(theta1, 0,Sigma) * dnorm(theta2, 0, Sigma)
+norm <- function(theta1, theta2, Sigma) dmvnorm(cbind(theta1, theta2), c(0,0), Sigma)
+normT1 <- function(theta1, theta2, Sigma, l, u) dtmvnorm(cbind(theta1, theta2)
+                                                   , c(0,0)
+                                                   , Sigma
+                                                   , lower = rep(l, 2)
+                                                   , upper = rep(u, 2))
+normT <- function(theta1, theta2, Sigma, l , u){
+  dtnorm(theta1, 0, Sigma, lower = l, upper = u) * dtnorm(theta2, 0, Sigma, lower = l, upper = u)
+}
+
+observed <- data.frame(Delta1 = .07, Delta2 = .05)
+
+#Setup ggplot dataframes
+probs = c(.5, .7, .9, .95)
+myPalette <- rev(c(paste0("grey", round(100*seq(.1, .9, .05)))))
+
+combiDeltas <- expand.grid(
+  Delta1 = gamma
+  , Delta2 = gamma
+  , figType = c("Model", "Prediction")
+  , Model = c("Propositional Model", "Analog Model", "Priming Model", "Unconstrained Model")
+)
+combiDeltas$Density <- NA
+
+combiDeltasRaw <- expand.grid(
+  Delta1 = gamma
+  , Delta2 = gamma
+)
+
+#ggplot skeleton
+makeModelPlot <- function(z, dat, ylab, xlab = NULL, breaks, strip = FALSE, ypos = "left", last = F){
+  graycols <- gray.colors(100, max(.0, .6 - 100 * max(dat$Density))
+                          , max(.7, 1 - 50 * max(dat$Density)))
+  margins <- c(5, 0, -10, 12)
+  margins_last <- c(5, 0, 0, 12)
+  # breaks <- exp(c(-11:(-1), -.1))
+  ggplot(mapping = aes(y = Delta1, x = Delta2, z = eval(parse(text = z)), fill = ..level..)
+         , data = dat
+         ) +
+  # geom_tile(aes(fill = predDensityCookLewandowski)) +
+  stat_contour(geom = "polygon"
+               # , breaks = breaks
+  ) +
+  geom_hline(yintercept = 0, color = "grey70", size = .3, alpha = .3) +
+  geom_vline(xintercept = 0, color = "grey70", size = .3, alpha = .3) +
+  geom_point(data = observed
+             , mapping = aes(x = Delta2, y = Delta1)
+             , inherit.aes = FALSE
+             , color = ifelse(ypos == "right", "#E41A1C", adjustcolor("white", alpha.f = 0))) + 
+  scale_fill_gradientn(colors = rev(graycols)) +
+  coord_fixed() +
+  scale_y_continuous(position = ypos
+                     , limits = c(min(combiDeltas$Delta1), max(combiDeltas$Delta1))
+                     , breaks = seq(-.2, .2, length.out = 3)
+                     , labels = seq(-200, 200, 200)) +
+  scale_x_continuous(breaks = seq(-.2, .2, length.out = 3)
+                     , limits = c(min(combiDeltas$Delta2), max(combiDeltas$Delta2))
+                     , labels = seq(-200, 200, 200)) +
+  labs(x = xlab, y = ylab) +
+  # facet_grid(Model ~ figType) + 
+  theme(
+    legend.position = "none"
+    , axis.title.x = if(!is.expression(xlab)) element_blank() else element_text()
+    , axis.text.x = if(!is.expression(xlab)) element_blank() else element_text()
+    , axis.ticks.x = if(!is.expression(xlab)) element_blank() else element_line()
+    , strip.text.x = if(!strip) element_blank() else element_text()
+    , panel.border = element_rect(color = "black", fill = NA)
+    , axis.text.y.right = element_text(hjust = 1)
+    , panel.spacing = unit(10, "points")
+    # , panel.spacing = unit(rel(10), "points")
+    , strip.text.y = ggplot2::element_text(margin = ggplot2::margin(0, 0, 0, 0))
+    , axis.title.y = element_text(margin = margin(t = 0, r = 0, b = 0, l = 0))
+    , plot.margin = unit(if(last == T){margins_last}else{margins}, "points")
+    # , strip.text.y = ggplot2::element_text(margin = ggplot2::margin(0, 0, 0, ggplot2::rel(12)))
+  )
+}
+```
+
+```{r densities}
+Null <- outer(gamma, gamma, norm0, Sigma = .002)
+Null <- nrmlz(Null)
+Pos <- outer(gamma
+                   , gamma
+                   , normT
+                   , sd0
+                   , l = 0
+                   , u = Inf)
+Pos <- nrmlz(Pos)
+Neg <- outer(gamma
+                   , gamma
+                   , normT
+                   , sd0
+                   , l = -Inf
+                   , u = 0)
+Neg <- nrmlz(Neg)
+General <- outer(gamma
+                 , gamma
+                 , norm
+                 , Sigma = matrix(c(sd0^2, 0, 0, sd0^2)
+                                  , nrow = 2))
+General <- nrmlz(General)
+
+#Marginal model specification
+GeneralH <- outer(gamma
+                  , gamma
+                  , norm
+                  , Sigma = matrix(c(sd0^2, eta*sd0^2, eta*sd0^2, sd0^2)
+                                     , nrow = 2))
+GeneralH <- nrmlz(GeneralH)
+
+PosH <- 4 * GeneralH
+index <- gamma < 0
+PosH[index, ] <- 0
+PosH[, index] <- 0
+PosH <- nrmlz(PosH)
+
+NegH <- 4 * GeneralH
+index <- gamma > 0
+NegH[index, ] <- 0
+NegH[, index] <- 0
+NegH <- nrmlz(NegH)
+
+#Model Predictions
+NullP <- nrmlz(applyFilter(Null, kern))
+PosP <- nrmlz(applyFilter(PosH, kern))
+NegP <- nrmlz(applyFilter(NegH, kern))
+GeneralP <- nrmlz(applyFilter(GeneralH, kern))
+```
+
+```{r null_model_prediction_plot, warning = FALSE}
+combiDeltas[combiDeltas$figType == "Model" & combiDeltas$Model == "Propositional Model", "Density"] <- as.vector(Null)
+combiDeltas[combiDeltas$figType == "Prediction" & combiDeltas$Model == "Propositional Model", "Density"] <- as.vector(NullP)
+
+nullmod <- data.frame(x = 0, y = 0, figType = "Model")
+```
+
+```{r analog_model_prediction_plot, cache = TRUE}
+combiDeltas[combiDeltas$figType == "Model" & combiDeltas$Model == "Analog Model", "Density"] <- as.vector(PosH)
+combiDeltas[combiDeltas$figType == "Prediction" & combiDeltas$Model == "Analog Model", "Density"] <- as.vector(PosP)
+```
+
+```{r priming_model_prediction_plot, cache = TRUE}
+combiDeltas[combiDeltas$figType == "Model" & combiDeltas$Model == "Priming Model", "Density"] <- as.vector(NegH)
+combiDeltas[combiDeltas$figType == "Prediction" & combiDeltas$Model == "Priming Model", "Density"] <- as.vector(NegP)
+```
+
+```{r general_model_prediction_plot, cache = TRUE}
+combiDeltas[combiDeltas$figType == "Model" & combiDeltas$Model == "Unconstrained Model", "Density"] <- as.vector(GeneralH)
+combiDeltas[combiDeltas$figType == "Prediction" & combiDeltas$Model == "Unconstrained Model", "Density"] <- as.vector(GeneralP)
+```
+
+```{r ModelFig}
+
+Null.m <- makeModelPlot(z = "Density"
+                          , dat = subset(combiDeltas
+                                         , Model == "Propositional Model" & figType == "Model")
+                          , ylab = expression(paste(Delta["2m"]))
+                          # , xlab = ""
+                          , breaks = rev(breaksEq)
+                          , strip = TRUE) +
+  geom_point(data = nullmod
+             , mapping = aes(x = x, y = y)
+             , inherit.aes = FALSE
+             , color = "grey10")
+
+Analog.m <- makeModelPlot(z = "Density"
+                                , dat = subset(combiDeltas
+                                               , Model == "Analog Model" & figType == "Model")
+                                , ylab = expression(paste(Delta["2m"]))
+                                # , xlab = ""
+                                , breaks = rev(breaks))
+
+Priming.m <- makeModelPlot(z = "Density"
+                                , dat = subset(combiDeltas
+                                               , Model == "Priming Model" & figType == "Model")
+                                , ylab = expression(paste(Delta["2m"]))
+                                # , xlab = ""
+                                , breaks = rev(breaks))
+
+General.m <- makeModelPlot(z = "Density"
+                           , dat = subset(combiDeltas
+                                          , Model == "Unconstrained Model" & figType == "Model")
+                           , ylab = expression(paste(Delta["2m"]))
+                           , xlab = expression(paste(Delta["1m"]))
+                           , breaks = rev(breaks)
+                           , last = T)
+
+Null.p <- makeModelPlot(z = "Density"
+                          , dat = subset(combiDeltas
+                                         , Model == "Propositional Model" & figType == "Prediction")
+                          , ylab = expression(paste(hat(Delta)["2m"]))
+                          # , xlab = ""
+                          , breaks = rev(breaksEq)
+                          , strip = TRUE
+                          , ypos = "right")
+
+Analog.p <- makeModelPlot(z = "Density"
+                                , dat = subset(combiDeltas
+                                               , Model == "Analog Model" & figType == "Prediction")
+                                , ylab = expression(paste(hat(Delta)["2m"]))
+                                # , xlab = ""
+                                , breaks = rev(breaks)
+                                , ypos = "right")
+
+Priming.p <- makeModelPlot(z = "Density"
+                                , dat = subset(combiDeltas
+                                               , Model == "Priming Model" & figType == "Prediction")
+                                , ylab = expression(paste(hat(Delta)["2m"]))
+                                # , xlab = ""
+                                , breaks = rev(breaks)
+                                , ypos = "right")
+
+General.p <- makeModelPlot(z = "Density"
+                           , dat = subset(combiDeltas
+                                          , Model == "Unconstrained Model" & figType == "Prediction")
+                           , ylab = expression(paste(hat(Delta)["2m"]))
+                           , xlab = expression(paste(hat(Delta)["1m"]))
+                           , breaks = rev(breaks)
+                           , ypos = "right"
+                           , last = T)
+
+scaler <- 1.2
+
+plots <- align_plots(Null.m
+          , Null.p
+          , Analog.m
+          , Analog.p
+          , Priming.m
+          , Priming.p
+          , General.m
+          , General.p
+          , align = "h"
+          , axis = 'l'
+          )
+```
+
