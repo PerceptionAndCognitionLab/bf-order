@@ -21,9 +21,10 @@ affiliation:
   - id            : "3"
     institution   : "University of California, Irvine"
 
-author_note: 
+author_note: >
+  This paper was written in RMarkdown with code for data analysis integrated into the text. The Markdown script is open and freely available at [github.com/PerceptionAndCognitionLab/bf-order](https://github.com/PerceptionAndCognitionLab/bf-order). The data used here are not original. We make these freely available with permission of the original authors at [github.com/PerceptionCognitionLab/data0/tree/master/lexDec-dist5](https://github.com/PerceptionCognitionLab/data0/tree/master/lexDec-dist5). Fayette Klaassen was supported by a grant from The Netherlands Organisation for Scientific Research (NWO): NWO 406-12-001.
 
-note: Version 3, 3/2018
+note: Version 3, 03/2018. This paper has not been peer reviewed.
 
 abstract: "Most theories in the social sciences are verbal and provide ordinal-level predictions for data.  For example, a theory might predict that performance is better in one condition than another, but not by how much.  One way of gaining additional specificity is to posit multiple ordinal constraints simultaneously. For example a theory might predict an effect in one condition, a larger effect in another, and none in a third.  We call such simultaneous constraints a 'system of orders' and show how common theoretical positions lead naturally to system-of-order predictions.  We adopt a Bayesian model comparison approach to assess evidence for multiple, simultaneous order constraints, a difficult endeavor in a frequentist framework.  The result is a statistical system custom tuned for the way social scientists conceptualize theory that is more intuitive and informative than current linear-model approaches." 
   
@@ -43,6 +44,7 @@ figurelist        : no
 tablelist         : no
 footnotelist      : no
 lineno            : no
+mask              : false
 
 lang              : "english"
 class             : jou
@@ -70,7 +72,7 @@ library('diagram')
 
  <!-- **Significance Statement**: Amid the turmoil in the social-science methodology, hypothesis testing as an intellectual activity has come under scrutiny.  Here, we note that most theories in the social sciences are verbal and provide ordinal-level predictions.  Meaningful constraint is gained by imposing multiple ordinal-level predictions simultaneously.  We propose that statistics be adapted to address whether different competing systems of order constraints best describe the structure in data.  We develop Bayes factors for the approach, and show how this approach of casting theory as orders leads to more insightful hypothesis testing. -->
 
-\setlength{\parindent}{0.3in}
+<!-- \setlength{\parindent}{0.3in} -->
 
 
 At the core of science is the ability to use data to inform theoretical positions.
@@ -141,7 +143,7 @@ To represent the theories it is useful to reparameterize the above model into re
 
 With this reparameterization models may be placed on the relative differences, $\Delta_{im}$. These differences are defined so that they are a subtraction of a digit further from 5 from a digit that is closer to 5.  Hence, positive values of $\Delta_{im}$ are consistent with the Analog-Representation theory where response times are larger for digits closer to 5.  
 
-```{r modelplot, fig.cap= "Models (left) and predictions (right) for the symbolic distance effect. Darker areas represent higher plausibility of $\\Delta_{im}$ before the data are collected.  Models are conditional on set values of $\\mu_m=0$ms and $\\eta=90$ms. Predictions take into account sampling noise and the correlation reflects the priors placed on $\\mu_m$ and $\\eta^2$. The red point represents a hypothetical observed data point for two individuals. The hypothetical data point is best predicted by the Analog-Representaion model.", fig.height=7, fig.asp= 1.8}
+```{r modelplot, fig.cap= "Models (left) and predictions (right) for the symbolic distance effect. Darker areas represent higher plausibility of $\\Delta_{im}$ before the data are collected.  Models are conditional on set values of $\\mu_m=0$ms and $\\eta=90$ms. Predictions take into account sampling noise and the correlation reflects the priors placed on $\\mu_m$ and $\\eta^2$. The red point represents a hypothetical observed data point for two individuals. The hypothetical data point is best predicted by the Analog-Representaion model.", fig.height=8, fig.asp= 1.8}
 plot_grid(plots[[1]]
           , plots[[2]]
           , plots[[3]]
@@ -201,11 +203,11 @@ B_{ab} = \frac{P(\bfY|\calM_a)}{P(\bfY|\calM_b)},
 \]
 where $\bfY$ is the collection of all observations.  The numerator and denominator are marginal probabilities of the data under the respective models, and these quantities are best thought of as the model predictions of data.  The right column of Figure\ \@ref(fig:modelplot) shows the predictions on observed relative differences for the four models applied here.  One aspect of these predictions that is not obvious is the correlation across participants.  This correlation comes from the hierarchical structure in these models, and is a direct result of variability of the population mean, $\mu_m$, as compared to the between-person variability, $\eta^2$.  A formal discussion of both the Bayes factor computations and the hierarchical structure of the models is provided in @Haaf:Rouder:2017.
 
-Once the predictions are known, model comparison is simple.  All we need to do is note where the data fall (cf. complexity and fit in @Hoijtink:2012).  The red dots in the right column denote hypothetical observed sample differences, $\hat{\Delta}_{im}$, for both participants.  As can be seen, this datum is best predicted by the Analog-Representation model.  In computation, this comes down to comparing samples from the prior (predictions) to samples from the posterior (where the data fall).
+Once the predictions are known, model comparison is simple.  All we need to do is note where the data fall [cf. complexity and fit in @Hoijtink:2012].  The red dots in the right column denote hypothetical observed sample differences, $\hat{\Delta}_{im}$, for both participants.  As can be seen, this datum is best predicted by the Analog-Representation model.  In computation, this comes down to comparing samples from the prior (predictions) to samples from the posterior (where the data fall).
 
 # Results
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, eval = T}
 knitr::knit_hooks$set(plot = knitr::hook_plot_tex)
 ```
 
