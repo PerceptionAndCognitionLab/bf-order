@@ -1,0 +1,232 @@
+
+```{r}
+dat <- read.csv("bugs.csv")
+datl <- melt(dat, id.vars = c("Subject", "Gender", "Region", "Education"))
+datl$condition <- factor(datl$variable, labels = c("LL", "LH", "HL", "HH"))
+datl$fear <- with(datl, ifelse(condition %in% c("LL", "HL"), 0 , 1))
+datl$disgust <- with(datl, ifelse(condition %in% c("LL", "LH"), 0 , 1))
+
+#Let's take a look at the data
+
+# apa_lineplot(datl, id = "Subject", factors = c("disgust", "fear"), dv = "value")
+# with(datl, tapply(value, list(fear, disgust), mean, na.rm = T))
+```
+
+```{r designMatrices}
+datl <- subset(datl, !is.na(value))
+
+xj <- datl$disgust
+xk <- datl$fear
+xjk <- datl$fear * datl$disgust
+mu <- (1 - xj) * (1 - xk)
+
+xj.5 <- ifelse(xj == 0, -1/2, 1/2)
+xk.5 <- ifelse(xk == 0, -1/2, 1/2)
+xjk.5 <- ifelse(xjk == 0, -1/2, 1/2)
+mu.5 <- ifelse(mu == 1, -1/2, 1/2)
+
+cornerX <- cbind(xj.5, xk.5, xjk.5)
+strictX <- matrix(mu.5, ncol = 1)
+fearX <- matrix(xk.5, ncol = 1)
+disgustX <- matrix(xj.5, ncol = 1)
+```
+
+```{r BF}
+r <- c("main" = sqrt(2)/2, "int" = 1/2)
+
+sampC <- nWayAOV(datl$value, cornerX
+                      , gMap = 0:2, rscale = c(r[1], r[1], r[2])
+                      , posterior = T)
+BFC <- nWayAOV(datl$value, cornerX
+                      , gMap = 0:2, rscale = c(r[1], r[1], r[2])
+                      , posterior = F)
+
+muLL <- sampC[, 1] - .5 * sampC[, 2] - .5 * sampC[, 3] - .5 * sampC[, 4] 
+muLH <- sampC[, 1] - .5 * sampC[, 2] + .5 * sampC[, 3] - .5 * sampC[, 4] 
+muHL <- sampC[, 1] + .5 * sampC[, 2] - .5 * sampC[, 3] - .5 * sampC[, 4] 
+muHH <- sampC[, 1] + .5 * sampC[, 2] + .5 * sampC[, 3] + .5 * sampC[, 4] 
+
+mus <- cbind(muLL, muLH, muHL, muHH)
+
+#Prior
+Mprior <- 100000
+alpha <- rcauchy(Mprior, 0, r[1])
+beta <- rcauchy(Mprior, 0, r[1])
+gamma <- rcauchy(Mprior, 0, r[2])
+
+prLL <- - .5 * alpha - .5 * beta - .5 * gamma
+prLH <- - .5 * alpha + .5 * beta - .5 * gamma
+prHL <- + .5 * alpha - .5 * beta - .5 * gamma
+prHH <- + .5 * alpha + .5 * beta + .5 * gamma
+
+priormus <- cbind(prLL, prLH, prHL, prHH)
+
+###Additive: muLL < (muLH, muHL) < muHH
+is.add <- function(mu){
+  mu[1] < mu[2] & mu[1] < mu[3] & mu[2] < mu[4] & mu[3] < mu[4]
+}
+
+#Prior
+res <- apply(priormus, 1, is.add)
+priorPAdd <- mean(res)
+
+#Posterior
+res <- apply(mus, 1, is.add)
+postPAdd <- mean(res)
+
+# postPAdd/priorPAdd
+
+###Compensatory: muLL < (muLH, muHL, muHH)
+is.comp <- function(mu){
+  mu[1] < mu[2] & mu[1] < mu[3] & mu[1] < mu[4]
+}
+
+#Prior
+res <- apply(priormus, 1, is.comp)
+priorPComp <- mean(res)
+
+#Posterior
+res <- apply(mus, 1, is.comp)
+postPComp <- mean(res)
+
+# postPComp/priorPComp
+
+###Strict Compensatory: muLL < (muLH = muHL = muHH)
+sampSC <- nWayAOV(datl$value, strictX
+                      , gMap = 0, rscale = r[1]
+                      , posterior = T)
+BFSC <- nWayAOV(datl$value, strictX
+                      , gMap = 0, rscale = r[1]
+                      , posterior = F)
+
+muLL <- sampSC[, 1] - .5 * sampSC[, 2]
+muLH <- sampSC[, 1] + .5 * sampSC[, 2]
+muHL <- sampSC[, 1] + .5 * sampSC[, 2]
+muHH <- sampSC[, 1] + .5 * sampSC[, 2]
+
+musS <- cbind(muLL, muLH, muHL, muHH)
+
+#Prior
+alpha <- rcauchy(Mprior, 0, r[1])
+
+prLL <- - .5 * alpha
+prLH <- + .5 * alpha
+prHL <- + .5 * alpha
+prHH <- + .5 * alpha
+
+priormusS <- cbind(prLL, prLH, prHL, prHH)
+
+is.SComp <- function(mu){
+  mu[1] < mu[2]
+}
+
+#Prior
+res <- apply(priormusS, 1, is.SComp)
+priorPSComp <- mean(res)
+
+#Posterior
+res <- apply(musS, 1, is.SComp)
+postPSComp <- mean(res)
+
+# postPSComp/priorPSComp
+
+###Fear Only: muLL = muHL < muLH = muHH
+sampF <- nWayAOV(datl$value, fearX
+                      , gMap = 0, rscale = r[1]
+                      , posterior = T)
+BFF <- nWayAOV(datl$value, fearX
+                      , gMap = 0, rscale = r[1]
+                      , posterior = F)
+
+muLL <- sampF[, 1] - .5 * sampF[, 2]
+muLH <- sampF[, 1] + .5 * sampF[, 2]
+muHL <- sampF[, 1] - .5 * sampF[, 2]
+muHH <- sampF[, 1] + .5 * sampF[, 2]
+
+musF <- cbind(muLL, muLH, muHL, muHH)
+
+#Prior
+alpha <- rcauchy(Mprior, 0, r[1])
+
+prLL <- - .5 * alpha
+prLH <- + .5 * alpha
+prHL <- - .5 * alpha
+prHH <- + .5 * alpha
+
+priormusF <- cbind(prLL, prLH, prHL, prHH)
+
+is.Fear <- function(mu){
+  mu[1] < mu[2]
+}
+
+#Prior
+res <- apply(priormusF, 1, is.Fear)
+priorPFear <- mean(res)
+
+#Posterior
+res <- apply(musF, 1, is.Fear)
+postPFear <- mean(res)
+
+# postPFear/priorPFear
+
+###Disgust Only: muLL = muLH < muHL = muHH
+sampD <- nWayAOV(datl$value, disgustX
+                      , gMap = 0, rscale = r[1]
+                      , posterior = T)
+BFD <- nWayAOV(datl$value, disgustX
+                      , gMap = 0, rscale = r[1]
+                      , posterior = F)
+
+muLL <- sampD[, 1] - .5 * sampD[, 2]
+muLH <- sampD[, 1] - .5 * sampD[, 2]
+muHL <- sampD[, 1] + .5 * sampD[, 2]
+muHH <- sampD[, 1] + .5 * sampD[, 2]
+
+musD <- cbind(muLL, muLH, muHL, muHH)
+
+#Prior
+alpha <- rcauchy(Mprior, 0, r[1])
+
+prLL <- - .5 * alpha
+prLH <- - .5 * alpha
+prHL <- + .5 * alpha
+prHH <- + .5 * alpha
+
+priormusD <- cbind(prLL, prLH, prHL, prHH)
+
+is.Disgust <- function(mu){
+  mu[1] < mu[3]
+}
+
+#Prior
+res <- apply(priormusD, 1, is.Disgust)
+priorPDisgust <- mean(res)
+
+#Posterior
+res <- apply(musD, 1, is.Disgust)
+postPDisgust <- mean(res)
+
+# postPDisgust/priorPDisgust
+```
+
+```{r allBF}
+#All compared to unconstrained
+
+bf0u <- 1/exp(BFC$bf)
+bf1u <- 1/(priorPAdd/postPAdd)
+bf2u <- postPComp/priorPComp
+bf3u <- exp(BFSC$bf - BFC$bf) * postPSComp/priorPSComp
+bf4u <- exp(BFF$bf - BFC$bf) * postPFear/priorPFear
+bf5u <- exp(BFD$bf - BFC$bf) * postPDisgust/priorPDisgust
+
+bfs <- c('bf0u' =  1/exp(BFC$bf)
+         , 'bf1u' = 1/(priorPAdd/postPAdd)
+         , 'bf2u' = postPComp/priorPComp
+         , 'bf3u' = exp(BFSC$bf - BFC$bf) * postPSComp/priorPSComp
+         , 'bf4u' = exp(BFF$bf - BFC$bf) * postPFear/priorPFear
+         , 'bf5u' = exp(BFD$bf - BFC$bf) * postPDisgust/priorPDisgust
+         )
+
+# bfs
+```
+

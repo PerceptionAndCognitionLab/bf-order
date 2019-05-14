@@ -1,0 +1,541 @@
+---
+title: "From theories to models to predictions with Bayesian model comparison."
+author: "Julia Haaf"
+date: May 14th, 2019
+output:
+  beamer_presentation:
+    theme: "metropolis"
+    fonttheme: "structurebold"
+    fig_caption: false
+    incremental: true
+    slide_level: 2
+    fig_crop: false
+    
+bibliography: lab.bib
+csl: "apa6.csl"
+    
+header-includes   :
+   - \usepackage{bm}
+   - \usepackage{amsmath}
+   - \usepackage{setspace}
+   - \usepackage{pcl} 
+   - \usepackage{color,xcolor}
+   - \definecolor{green}{rgb}{0,.30,0}
+   - \definecolor{red}{rgb}{.7,0,0}
+   - \definecolor{blue}{rgb}{0,0,.8}
+   - \usepackage{wasysym}
+   - \usepackage{cancel}
+   - \usepackage{multirow}
+   - \titlegraphic{\centering \includegraphics[height=1.5cm]{pics/UvAlogo.png} \vspace{2cm}}
+
+   - \newcommand\Fontvi{\fontsize{6}{7.2}\selectfont}
+---
+
+```{r include = F}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(dev = 'pdf')
+
+library('msm')
+library('knitr')
+library("MASS")
+library("boot")
+library("plotrix")
+library("reshape2")
+library("shape")
+library("MCMCpack")
+library("curl")
+library("plyr")
+library("psych")
+library("diagram")
+library("RColorBrewer")
+library("spatialfil")
+library("ggplot2")
+library("papaja")
+library("mvtnorm")
+library("tmvtnorm")
+library("cowplot")
+library("gridExtra")
+library("BayesFactor")
+library("rvest")
+library("Hmisc")
+library("devtools")
+library("readxl")
+library('tidyr')
+library("foreign")
+library("dplyr")
+library("car")
+
+SourceURL <- "https://raw.githubusercontent.com/Joe-Hilgard/Anderson-meta/master/table_managing_functions.R"
+source_url(SourceURL)
+
+SourceURL <- "https://raw.githubusercontent.com/PerceptionAndCognitionLab/ctx-indiff/public/shared/functions/getdata.R"
+source_url(SourceURL)
+
+polyCI <- function(upper, lower, col){
+  len <- length(upper)
+  polygon(x = c(rev(1 : len), 1 : len)
+          , y = c(rev(lower), upper)
+          , col = col
+          , border = NA)
+}
+
+plot_freq_bayes <- function(ybar
+                            , exp_var = "exp"
+                            , cond_var = "cond"
+                            , congruent = 0
+                            , thet.n = theta.n
+                            , main = ""
+){
+  
+  #####################FREQUENTIST PLOT#############################################
+  exp_num <- unique(exp_var)
+  delta <- data.frame(exp = exp_num, delta = NA)
+  delta$delta <- ybar[, 2] - ybar[, 1]
+  delta$thn <- colMeans(thet.n) * 1000
+  delta[, ncol(delta)+(1:2)] <- t(apply(thet.n, 2, function(x) quantile(x, c(.025, .975))))
+  delta_i <- delta[order(delta$delta),]
+  delta_i$delta <- delta_i$delta *1000
+  
+  plot(x = 1: nrow(delta_i)
+       , y = delta_i$delta
+       , ylim = c(min(delta_i$delta), max(delta_i$delta))
+       , type = "l"
+       , col = "gray50"
+       , ylab = expression(Effect ~ parameter ~ theta[i])
+       , xlab = "Studies"
+       , frame.plot = FALSE
+       , xaxt = 'n'
+       , yaxt = 'n'
+  )
+  title(main, line = -1)
+  axis(side = 1
+       , at = c(1, nrow(delta_i))
+  )
+  axis(side = 2
+  )
+  polyCI(upper = delta_i[,ncol(delta)] * 1000, lower = delta_i[,ncol(delta)-1] * 1000, col = "gray85")
+  
+  abline(h = 0, col = "gray40")
+  
+  lines(delta_i$delta
+         , col = "gray65"
+        , lwd = 2)
+  
+  points(delta_i$thn
+         , col = "darkslateblue"
+         , pch = 19
+         )
+}
+```
+
+# How can we test psychological theories?
+
+## Theoretical Statements
+
+- Levels of Processing: *Processing words semantically increases memory performance as compared to more shallow processing.*
+- Stroop: *Inhibition leads to a slow-down for incongruent items compared to congruent items.*
+- Positive psychology: *Positive psychology interventions improve life satifaction.*
+
+\vspace*{.5cm}
+
+\centering \includegraphics[width = 100px]{pics/theory.png}
+
+## Theoretical Statements
+
+- Each statement describes constraint in the world.
+- None of these statements may be tested with data.
+- None has specification of sampling noise or measurement errors.
+- And that is appropriate.
+
+\vspace*{.5cm}
+
+\centering \includegraphics[width = 100px]{pics/theory.png}
+
+## Statistical Models
+
+- Models instantiate the critical constraints from theory.
+- Models specify sample noise.
+- Models can predict data.
+
+```{r, eval = F}
+M  <- matrix(nrow = 6, ncol = 6, byrow = TRUE, data = 0)
+M[2, 1] <- ""
+M[3,1]<-""
+M[4,1]<- ""
+M[5,2]<-""
+M[5,3]<-""    
+M[5, 4] <- "Analysis"
+M[6,5] <-"Interpretation"
+
+ArrM <- matrix(nrow = 6, ncol = 6, byrow = TRUE, data = 0)
+
+ArrM[2, 1] <- .5
+ArrM[3,1]<-.33
+ArrM[4,1]<- .25
+ArrM[5,2]<-.5
+ArrM[5,3]<- .5    
+ArrM[5, 4] <- .5
+ArrM[6,5] <-.5
+
+col=c("lightskyblue1","thistle1","thistle1","thistle1","darkseagreen1","lightskyblue1")
+
+pos <- cbind (c(0.17, 0.17, 0.27, 0.43, 0.79, 0.79), c(0.89, 0.5, 0.3, 0.1, 0.4, 0.89))
+pp <- plotmat(M, pos = pos, name = c("Theoretical\n Constraint", "Model:\n Constraint I", "Model:\n Constraint II", "Model:\n Constraint III","Statistical\n Inference", "Inference\n About Theory"),box.col=col,
+              lwd = 1, box.lwd = 2, cex.txt = 1.3, 
+              box.size = 0.16, box.type = "rect", box.prop = 0.25, curve = 0
+              , arr.type = "triangle"
+              , arr.lwd = 1.3
+              , arr.pos = ArrM
+              , shadow.size = 0
+              , box.cex = 1.4)
+```
+
+\vspace*{1cm}
+
+\begin{figure}
+\hfill
+\includegraphics[width = 80px]{pics/theory.png}
+\end{figure}
+
+
+
+## How do we represent numbers internally?
+\framesubtitle{How do we represent numbers internally?}
+
+\vspace*{.3cm}
+
+\centering \includegraphics[width = 150px]{pics/numbers.png}
+
+@Rouder:etal:2005a
+
+## How do we represent numbers internally?
+\framesubtitle{Theoretical Positions:}
+
+\vspace*{.3cm}
+
+1. Analog representation.
+
+\vspace*{.7cm}
+
+\centering \includegraphics[width = 250px]{pics/skala.png}
+
+## How do we represent numbers internally?
+\framesubtitle{Theoretical Positions:}
+
+\vspace*{.3cm}
+
+>1. Analog representation.
+>2. Propositional representation.
+
+\vspace*{.4cm}
+
+\centering \includegraphics[width = 290px]{pics/verhaeltnis.png}
+
+## How do we represent numbers internally?
+\framesubtitle{Theoretical Positions:}
+
+\vspace*{.3cm}
+
+>1. Analog representation.
+>2. Propositional representation.
+>3. Priming + spreading activation.
+
+\vspace*{.2cm}
+
+\centering \includegraphics[width = 250px]{pics/optinussprime.png}
+
+<!-- ## How do we represent numbers internally? -->
+<!-- \framesubtitle{Theoretical Positions:} -->
+
+<!-- \vspace*{.3cm} -->
+
+<!-- >1. Everyones uses analog representation. -->
+<!-- >2. Everyone uses propositional representation. -->
+<!-- >3. Everyone uses priming + spreading activation. -->
+<!-- >4. None of the above. -->
+
+<!-- \vspace*{.2cm} -->
+
+<!-- \centering \includegraphics[width = 130px]{pics/whoot.png} -->
+
+## Default statistical model
+
+## Default statistical model
+
+```{r, cache = T}
+source('../../papers/submission/R-scripts/ld5.R')
+
+dat=clean()
+dat$side <- factor(ifelse(dat$stim >= 3, "g", "l"))
+dat$proxi <- factor(ifelse(dat$stim %in% c(0, 5), 3, ifelse(dat$stim %in% c(2, 3), 1, 2)))
+res <- anovaBF(rt ~ side*proxi, dat)
+```
+
+- ANOVA: 2 (direction: greater vs. less) x 3 (proximity: 2 or 8 vs. 3 or 7 vs. 4 or 6)
+- Theoretically we are concerned with the second main effect.
+- Main effect of proximity: Bayes factor of $10^{40}$-to-1 in favor of the effect.
+- Bayes factor of at least $`r printnum(extractBF(res)[2, 1]/extractBF(res)[3, 1])`$-to-1 against any other model.
+
+\vspace*{.5cm}
+
+\begin{figure}
+\hfill
+\includegraphics[width = 75px]{pics/numbers.png}
+\end{figure}
+
+## Default statistical model
+
+But was does it mean to have significant main effect?
+
+```{r, fig.asp = .4, fig.align='center'}
+layout(matrix(1:2, ncol = 2))
+
+predm1 <- c(550, 610, 650, 640, 600, 540)
+
+plot(0, 0, ylim = c(500, 700), xlim = c(.5, 6.5), axes = F, ylab="Response Time (ms)",xlab='Digit')
+lines(1:3,predm1[1:3], lwd = 2)
+points(1:3,predm1[1:3],pch=21,bg='firebrick1',cex=1.2)
+lines(4:6,predm1[4:6], lwd = 2)
+points(4:6,predm1[4:6],pch=21,bg='firebrick1',cex=1.2)
+axis(2, at = seq(550, 650, 50))
+axis(1,at=1:3,lab=c(2:4))
+axis(1,at=4:6,lab=c(6:8))
+
+predm1 <- c(650, 610, 550, 540, 600, 640)
+
+plot(0, 0, ylim = c(500, 700), xlim = c(.5, 6.5), axes = F, ylab="Response Time (ms)",xlab='Digit')
+lines(1:3,predm1[1:3], lwd = 2)
+points(1:3,predm1[1:3],pch=21,bg='firebrick1',cex=1.2)
+lines(4:6,predm1[4:6], lwd = 2)
+points(4:6,predm1[4:6],pch=21,bg='firebrick1',cex=1.2)
+axis(2, at = seq(550, 650, 50))
+axis(1,at=1:3,lab=c(2:4))
+axis(1,at=4:6,lab=c(6:8))
+```
+
+
+## Number representation (Rouder et al., 2005)
+
+\begin{columns}
+\column{.1\textwidth}
+\column{.8\textwidth}
+
+```{r plot-ld5, fig.width=6, fig.height=4.5, fig.align='center'}
+par(mar = c(4, 6, 0, 2), mgp = c(2, .7, 0))
+plotMean(dat,'')
+```
+
+\column{.1\textwidth}
+\end{columns}
+
+
+## Problem for preregistration
+
+- Typical procedure: Test + plot.
+- Test main effects and interactions (preregister).
+- Plot and check whether the effect is in the right direction.
+- Allows for unnecessary flexibility and posthoc reasoning.
+- Specifying more constraint models may lead to more evidence for the theoretical predictions.
+
+## Ordinal models across people
+
+\vspace*{1cm}
+
+\centering \includegraphics[width = 175px]{pics/arrows.png}
+
+## Does everyone truly represent numbers as analog quantities?
+
+- *Everyone has the same number representation* $\rightarrow$ common mechanism.
+- *Mixed number representation* $\rightarrow$ more complex. What determines who has what type of number representation?
+
+## Theoretical positions as ordinal models
+
+\vspace*{.2cm}
+
+```{r, fig.width=6, fig.asp=.85, fig.align='center'}
+layout(matrix(ncol=2, 1:4, byrow=T))
+par(cex=1.1,mgp=c(2,.7,0)
+    , mar = c(.5, 2, 2, .5))
+myCol=c('lightblue','lavender','lightgreen')
+
+names=c(4:2,6:8)
+o=c(1,4,2,5,3,6)
+M=matrix(nrow=length(names),byrow=F,ncol=length(names),data=0)
+M[1,2]=M[2,3]=''
+M[4,5]=M[5,6]=''
+plotmat(t(M[o,o]),pos=c(2,2,2),name=names[o],curve=0,box.type="round",box.size=.07,box.prop=1,box.col=rep(myCol,each=2),arr.length=0)
+axis(2, at=c(.2,.8), lab=c("Faster","Slower"),cex=1)
+# box()
+mtext(side=3,adj=.5,line=-.5,"Analog-Representation",cex=1.1)
+
+names=c(2:4,6:8)
+M=matrix(nrow=length(names),byrow=F,ncol=length(names),data=0)
+M[1,2]=M[2,3]=''
+M[4,5]=M[5,6]=''
+pos=matrix(nrow=6,ncol=2)
+pos[,1]=c(.1,.4,.7,.3,.6,.9)
+pos[,2]=c(.65,.65,.65,.35,.35,.35)
+plotmat(M,pos,name=names,curve=0,box.type="round",box.size=.04,box.prop=1,box.col=c(rev(myCol),myCol),arr.length=0,arr.type='triangle')
+# box()
+mtext(side=3,adj=.5,line=-.5,"Propositional Representation",cex=1.1)
+
+
+names=c(2:4,8:6)
+o=c(1,4,2,5,3,6)
+M=matrix(nrow=length(names),byrow=F,ncol=length(names),data=0)
+M[1,2]=M[2,3]=''
+M[4,5]=M[5,6]=''
+plotmat(t(M[o,o]),pos=c(2,2,2),name=names[o],curve=0,box.type="round",box.size=.06,box.prop=1,box.col=myCol[c(3,3,2,2,1,1)],arr.length=0)
+# box()
+mtext(side=3,adj=.5,line=-.5,"Priming + Spreading Activation",cex=1.1)
+axis(2, at=c(.2,.8), lab=c("Faster","Slower"),cex=1)
+
+names=c(2:4,6:8)
+M=matrix(nrow=length(names),byrow=F,ncol=length(names),data=0)
+# M[1,2]=M[2,3]=''
+# M[4,5]=M[5,6]=''
+pos=matrix(nrow=6,ncol=2)
+pos[,1]=c(.1,.4,.7,.3,.6,.9)
+pos[,2]=c(.65,.65,.65,.35,.35,.35)
+plotmat(M,pos,name=names,curve=0,box.type="round",box.size=.04,box.prop=1,box.col=c(rev(myCol),myCol),arr.length=0,arr.type='triangle')
+# box()
+mtext(side=3,adj=.5,line=-.5,"None of the above",cex=1.1)
+```
+
+
+## "Does Everyone" analysis 
+
+\vspace*{.5cm}
+
+\begin{columns}
+\column{.1\textwidth}
+\column{.8\textwidth}
+
+```{r plot-ld5-all, fig.width=6, fig.height=4.5, fig.align='center'}
+means <- with(dat, tapply(rt, list(sub, stim), mean))
+matplot(t(means), pch = 20, col = "gray50", axes = F
+        , xlab = "Digit", ylab = "Response Time (ms)")
+axis(1,at=1:3,lab=c(2:4))
+axis(1,at=4:6,lab=c(6:8))
+axis(2, at = seq(500, 1000, 250))
+for(i in 1:nrow(means)){
+  lines(1:3, means[i, 1:3], col = adjustcolor("gray50", .5), lwd = 1.2)
+  lines(4:6, means[i, 4:6], col = adjustcolor("gray50", .5), lwd = 1.2)
+}
+lines(1:3, colMeans(means[,1:3]), lwd = 2)
+points(1:3, colMeans(means[,1:3]), pch=21, bg='cornflowerblue', cex=1.2)
+lines(4:6, colMeans(means[,4:6]), lwd = 2)
+points(4:6, colMeans(means[,4:6]), pch=21, bg='cornflowerblue', cex=1.2)
+```
+
+\column{.1\textwidth}
+\end{columns}
+
+## "Does Everyone" analysis
+
+\vspace*{1cm}
+
+```{r, fig.width=8, fig.height=5}
+myMeans=tapply(dat$rt,list(dat$sub,dat$stim),mean)
+diffs=apply(myMeans,1,diff)
+a1=diffs[1,]
+b1=diffs[2,]
+a2=-diffs[4,]
+b2=-diffs[5,]
+combo=cbind(a1,b1,a2,b2)
+plotIndv(combo,'',ylim=c(-60,200)
+         , xlabel = c(expression(paste(d[1]))
+             ,expression(paste(d[2]))
+             ,expression(paste(d[3]))
+             ,expression(paste(d[4]))))
+lines(colMeans(combo), col = "orangered2", lwd = 1.5)
+points(colMeans(combo), col = "orangered2", pch = 19)
+```
+
+## Results for "Does Everyone" analysis
+
+\vspace*{1cm}
+
+```{r, fig.height=4.5, fig.width=8}
+layout(matrix(1:2, ncol = 2))
+myMeans=tapply(dat$rt,list(dat$sub,dat$stim),mean)
+diffs=apply(myMeans,1,diff)
+a1=diffs[1,]
+b1=diffs[2,]
+a2=-diffs[4,]
+b2=-diffs[5,]
+combo=cbind(a1,b1,a2,b2)
+plotIndv(combo,'Observed Effects',ylim=c(-60,200)
+         , xlabel = c(expression(paste(d[1]))
+             ,expression(paste(d[2]))
+             ,expression(paste(d[3]))
+             ,expression(paste(d[4]))))
+lines(colMeans(combo), col = "orangered2", lwd = 1.2)
+points(colMeans(combo), col = "orangered2", pch = 20)
+
+load('../../papers/submission/ld5.Rdata')
+plotIndv(out$samples,'Estimated Effects',ylim=c(-60,200))
+lines(colMeans(out$samples), col = "orangered2", lwd = 1.2)
+points(colMeans(out$samples), col = "orangered2", pch = 20)
+```
+
+## Results for "Does Everyone" analysis
+
+\vspace*{.2cm}
+
+- Preferred model: **Analog representation** model
+
+- Preferred `r printnum(out$BF[1])`-to-1 over the **None of the above** model
+
+- Preferred `r "$3 \\times 10^{55}$"`-to-1 over the **Propositional representation** model
+
+- Bayes factor for **Priming + spreading activation** model cannot be estimated 
+
+\centering \includegraphics[width = 150px]{pics/skala.png}
+
+##Take-away for theory development
+
+1. Psychological theories typically provide ordinal constraint.
+2. Developing ordinal models helps us determine predicted patterns *before* collecting data.
+3. Bayesian model comparison gives an accessible framework to test ordinal models.
+4. Theoretical ordinal constraints may account for everyone.
+5. "Everyone Does" models are parsimonious descriptions of common mechanisms.
+6. To assess common mechanisms sample noise has to be taken into account.
+
+\vspace*{.1cm}
+
+\begin{figure}
+\centering
+\includegraphics[width = 70px]{pics/theory.png}
+\end{figure}
+
+## Thank You!
+
+Further Recources for the Pragmatic Psychologist
+
+>- Accessible book to get started with ordinal models: @Hoijtink:2012
+>- Software packages: `bain` or `BayesFactor` for `R` users
+>- "Does everyone" analysis: @Haaf:Rouder:2017 and @Haaf:etal:2018
+>- Presentation and all code is available at: \color{blue} \href{https://tinyurl.com/OrdinalConstraint}{tinyurl.com/OrdinalConstraint}
+
+\begin{figure}
+\hfill
+\includegraphics[width = 60px]{pics/allein.png}
+\end{figure}
+
+
+## References
+
+\scriptsize 
+\setlength{\parindent}{-0.5in}
+\setlength{\leftskip}{0.5in}
+
+
+
+---
+nocite: |
+  @Hoijtink:2012,
+  @Rouder:etal:2012, 
+  @Rouder:etal:2005a
+...
+
