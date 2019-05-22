@@ -506,7 +506,7 @@ The final limitation is that the current analyses are not yet available in popul
 
 The authors advocate for and adhere to a fully transparent research pipeline [@Rouder:etal:2019a]. This transparency includes making data and analysis code openly accessible.
 
-- The data analyzed here were previously collected by @Teige-Mocigemba:etal:2017 (Example 1) and @Rouder:etal:2005a (Example 2). Both datasets are publicly available on github.com ([Example 1](https://osf.io/vcz4a/) and [Example 2](https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/lexDec-dist5/ld5.all)).
+- The data analyzed here were previously collected by @Teige-Mocigemba:etal:2017 (Example 1) and @Rouder:etal:2005a (Example 2). Both datasets are publicly available on github.com ([Example 1](https://github.com/PerceptionAndCognitionLab/bf-order/blob/public/papers/submission/dat/AMP_end_all_final.sav?raw=true) and [Example 2](https://raw.githubusercontent.com/PerceptionCognitionLab/data0/master/lexDec-dist5/ld5.all)).
 
 - The document for this paper, with all text and code, can be found at [https://github.com/PerceptionAndCognitionLab/bf-order/tree/public/papers/submission](https://github.com/PerceptionAndCognitionLab/bf-order/tree/public/papers/submission).
 
