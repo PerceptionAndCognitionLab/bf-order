@@ -1,0 +1,152 @@
+---
+title: "Affect Misattribution Procedure and Prejudice"
+author: "Julia Haaf"
+date: "March 25, 2019"
+output: html_document
+---
+
+```{r aggregate}
+# ## Aggregate response data by participant and condition
+# dat.agg <- data %>%
+#   group_by(subject, primeval, targetval) %>%
+#   summarize(preference = mean(resp, na.rm = T))
+# # nrow(dat.agg)/4
+# 
+# dat.agg$primeval <- factor(dat.agg$primeval, labels = c("neg", "pos"))
+# dat.agg$targetval <- factor(dat.agg$targetval, labels = c("neg", "pos"))
+
+## Read final data set
+dat <- read.spss("../dat/AMP_end_all_final.sav", to.data.frame = T)
+dat.agg <- dat %>%
+  gather(cond, preference, nn, np, pn, pp) %>%
+  arrange(subject) %>%
+  separate(cond, c("primeval", "targetval"), 1)
+```
+
+```{r design-mat}
+############Let's do this with nwayAOV
+sub <- recode(dat.agg$subject
+              , paste(paste0("'", unique(dat.agg$subject), "'=", 1:length(unique(dat.agg$subject)), ";"), collapse = '')
+              , as.factor = F)
+I <- max(sub)
+
+# # Indicator variables for my cell means, using cornerstone parameterization
+# xj <- ifelse(dat.agg$primeval == "neg", -1/2, 1/2) #effect of prime
+# xk <- ifelse(dat.agg$targetval == "neg", -1/2, 1/2) #effect of target
+# xjk <- ifelse(dat.agg$primeval == "neg" | dat.agg$targetval == "neg", -1/2, 1/2) #effect of prime + target / interaction
+
+# Indicator variables for my cell means, using cornerstone parameterization
+xj <- ifelse(dat.agg$primeval == "n", 0, 1) #effect of prime
+xk <- ifelse(dat.agg$targetval == "n", 0, 1) #effect of target
+xjk <- ifelse(dat.agg$primeval == "n" | dat.agg$targetval == "n", 0, 1) #effect of prime + target / interaction
+
+cornerX <- cbind(xj, xk, xjk)
+xrand <- matrix(0, nrow = nrow(dat.agg), ncol = I)
+for(i in 1:nrow(dat.agg)){
+  xrand[i, sub[i]] <- 1
+}
+Xmat <- cbind(cornerX, xrand) #design matrix for the unconstrained model including random participant intercept
+Xmatt <- cbind(xk, xrand) #design matrix for the model with unconstrained target main effect but no prime effect
+Xnull <- xrand #design matrix for null model with random participant effect
+```
+
+```{r samples, cache = T}
+r <- c("main" = 1/4, "int" = 1/5, "rand" = 1)
+chnge <- 0
+
+#sample from the unconstrained model and get BF for unconstrained vs. package null model
+sampFull <- nWayAOV(dat.agg$preference, Xmat
+                 , gMap = c(0:2, rep(3, I)), rscale = c(r[1], r[1], r[2], r[3])
+                 , posterior = T)
+BFFull <- nWayAOV(dat.agg$preference, Xmat
+              , gMap = c(0:2, rep(3, I)), rscale = c(r[1], r[1], r[2], r[3])
+              , posterior = F)
+
+#sample from the unconstrained target main effect model and get BF vs. package null model
+sampTarget <- nWayAOV(dat.agg$preference, Xmatt
+                    , gMap = c(0, rep(1, I)), rscale = c(r[1], r[3])
+                    , posterior = T)
+BFTarget <- nWayAOV(dat.agg$preference, Xmatt
+                  , gMap = c(0, rep(1, I)), rscale = c(r[1], r[3])
+                  , posterior = F)
+
+# #sample from null model and get BF for out null model
+# sampNull <- nWayAOV(dat.agg$preference, Xnull
+#                       , gMap = rep(0, I), rscale = c(r[3])
+#                       , posterior = T)
+BFNull <- nWayAOV(dat.agg$preference, Xnull
+                    , gMap = rep(0, I), rscale = c(r[3])
+                    , posterior = F)
+```
+
+```{r eval, cache = F}
+## Posterior samples for the cell means
+# # Calculate estimated cell means for each iteration from the unconstrained model samples
+# munn <- sampFull[, 1] - .5 * sampFull[, 2] - .5 * sampFull[, 3] - .5 * sampFull[, 4] 
+# munp <- sampFull[, 1] - .5 * sampFull[, 2] + .5 * sampFull[, 3] - .5 * sampFull[, 4] 
+# mupn <- sampFull[, 1] + .5 * sampFull[, 2] - .5 * sampFull[, 3] - .5 * sampFull[, 4] 
+# mupp <- sampFull[, 1] + .5 * sampFull[, 2] + .5 * sampFull[, 3] + .5 * sampFull[, 4] 
+
+munn <- sampFull[, 1] 
+munp <- sampFull[, 1] + sampFull[, 3]
+mupn <- sampFull[, 1] + sampFull[, 2]
+mupp <- sampFull[, 1] + sampFull[, 2] + sampFull[, 3] + sampFull[, 4] 
+
+mus <- cbind(munn, munp, mupn, mupp)
+# colMeans(mus)
+
+# Calulate estimated cell means for the combined cells across prime conditions from the unconstrained target main effect model
+mutn <- sampTarget[, 1]
+mutp <- sampTarget[, 1] + sampTarget[, 2]
+
+muts <- cbind(mutn, mutp)
+# colMeans(muts)
+
+## Prior and Posterior Probability of the predicted ordering for prejudiced AMP responses, i.e. ordering as expected for the Prejudice model
+is.racist <- function(x){
+  t1 <- x[1] < x[2]
+  t2 <- x[1] < x[3]
+  t3 <- x[2] < x[4]
+  t4 <- x[3] < x[4]
+  t1 & t2 & t3 & t4
+}
+
+# Posterior Prob from the estimated cell means
+out <- apply(mus, 1, is.racist)
+postprob <- mean(out)
+
+# Simple logic would be that there are 24 possible ordering with four cell means, the Prejudice model only allows for two, so prior prob is 1/12. But, due to the parameterization, the prior probability of the ordering is actually much higher. Therefore I sample from the priors and check for the ordering just as I do with the posterior.
+#Estimation of prior probability of all effects being in the expected direction
+#prior on alpha
+Mprior <- 1000000
+mu <- rnorm(Mprior, 0, 100)
+mu.j <- rcauchy(Mprior,0,r[1])
+mu.k <- rcauchy(Mprior,0,r[1])
+mu.jk <- rcauchy(Mprior,0,r[2])
+priormunn <- mu
+priormunp <- mu + mu.k
+priormupn <- mu + mu.j 
+priormupp <- mu + mu.j + mu.k + mu.jk
+
+priormus <- cbind(priormunn, priormunp, priormupn, priormupp)
+out <- apply(priormus, 1, is.racist)
+priorprob <- mean(out)
+
+BF_pu <- postprob/priorprob
+
+## Prior and Posterior Probability of the predicted ordering for the target-only model
+out2 <- apply(muts, 1, function(x) x[1] < x[2])
+postprobt <- mean(out2)
+# From unconstrained to constrained target main effect model the possible orderings are reduced by half. So prior probability is .5
+BF_pt <- postprobt/.5
+
+## All Bayes factors as compared to unconstrained
+BF_0u <- 1/exp(BFFull$bf - BFNull$bf)
+BF_pu <- BF_pu
+BF_tu <- BF_pt * exp(BFTarget$bf - BFFull$bf)
+bfs <- c(BF_0u, BF_tu, BF_pu)
+modnames <- c("Null vs. Unconstrained", "Target effect vs. Unconstrained", "Both effects vs. Unconstrained")
+names(bfs) <- modnames
+# kable(data.frame(Comparison = modnames, BFs = printnum(bfs)))
+```
+

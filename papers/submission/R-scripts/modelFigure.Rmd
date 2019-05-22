@@ -87,7 +87,7 @@ makeModelPlot <- function(z, dat, ylab, xlab = NULL, breaks, strip = FALSE, ypos
                      , limits = c(min(combiDeltas$Delta2), max(combiDeltas$Delta2))
                      , labels = seq(-200, 200, 200)) +
   labs(x = xlab, y = ylab) +
-  # facet_grid(Model ~ figType) + 
+  # facet_grid(Model ~ figType) +
   theme(
     legend.position = "none"
     , axis.title.x = if(!is.expression(xlab)) element_blank() else element_text()
@@ -184,7 +184,7 @@ combiDeltas[combiDeltas$figType == "Prediction" & combiDeltas$Model == "Unconstr
 Null.m <- makeModelPlot(z = "Density"
                           , dat = subset(combiDeltas
                                          , Model == "Propositional Model" & figType == "Model")
-                          , ylab = expression(paste(Delta["2m"]))
+                          , ylab = expression(paste(delta["2m"]))
                           # , xlab = ""
                           , breaks = rev(breaksEq)
                           , strip = TRUE) +
@@ -196,29 +196,29 @@ Null.m <- makeModelPlot(z = "Density"
 Analog.m <- makeModelPlot(z = "Density"
                                 , dat = subset(combiDeltas
                                                , Model == "Analog Model" & figType == "Model")
-                                , ylab = expression(paste(Delta["2m"]))
+                                , ylab = expression(paste(delta["2m"]))
                                 # , xlab = ""
                                 , breaks = rev(breaks))
 
 Priming.m <- makeModelPlot(z = "Density"
                                 , dat = subset(combiDeltas
                                                , Model == "Priming Model" & figType == "Model")
-                                , ylab = expression(paste(Delta["2m"]))
+                                , ylab = expression(paste(delta["2m"]))
                                 # , xlab = ""
                                 , breaks = rev(breaks))
 
 General.m <- makeModelPlot(z = "Density"
                            , dat = subset(combiDeltas
                                           , Model == "Unconstrained Model" & figType == "Model")
-                           , ylab = expression(paste(Delta["2m"]))
-                           , xlab = expression(paste(Delta["1m"]))
+                           , ylab = expression(paste(delta["2m"]))
+                           , xlab = expression(paste(delta["1m"]))
                            , breaks = rev(breaks)
                            , last = T)
 
 Null.p <- makeModelPlot(z = "Density"
                           , dat = subset(combiDeltas
                                          , Model == "Propositional Model" & figType == "Prediction")
-                          , ylab = expression(paste(hat(Delta)["2m"]))
+                          , ylab = expression(paste(hat(delta)["2m"]))
                           # , xlab = ""
                           , breaks = rev(breaksEq)
                           , strip = TRUE
@@ -227,7 +227,7 @@ Null.p <- makeModelPlot(z = "Density"
 Analog.p <- makeModelPlot(z = "Density"
                                 , dat = subset(combiDeltas
                                                , Model == "Analog Model" & figType == "Prediction")
-                                , ylab = expression(paste(hat(Delta)["2m"]))
+                                , ylab = expression(paste(hat(delta)["2m"]))
                                 # , xlab = ""
                                 , breaks = rev(breaks)
                                 , ypos = "right")
@@ -235,7 +235,7 @@ Analog.p <- makeModelPlot(z = "Density"
 Priming.p <- makeModelPlot(z = "Density"
                                 , dat = subset(combiDeltas
                                                , Model == "Priming Model" & figType == "Prediction")
-                                , ylab = expression(paste(hat(Delta)["2m"]))
+                                , ylab = expression(paste(hat(delta)["2m"]))
                                 # , xlab = ""
                                 , breaks = rev(breaks)
                                 , ypos = "right")
@@ -243,11 +243,12 @@ Priming.p <- makeModelPlot(z = "Density"
 General.p <- makeModelPlot(z = "Density"
                            , dat = subset(combiDeltas
                                           , Model == "Unconstrained Model" & figType == "Prediction")
-                           , ylab = expression(paste(hat(Delta)["2m"]))
-                           , xlab = expression(paste(hat(Delta)["1m"]))
+                           , ylab = expression(paste(hat(delta)["2m"]))
+                           , xlab = expression(paste(hat(delta)["1m"]))
                            , breaks = rev(breaks)
                            , ypos = "right"
                            , last = T)
+
 
 scaler <- 1.2
 

@@ -51,10 +51,10 @@ mtext(side=3,adj=0,cex=1.0,mylab)
 }
 
 #This function makes figure 3B in the manuscript
-plotIndv=function(combo, mylab='', xlabel = c(expression(paste(Delta[1]))
-                                           ,expression(paste(Delta[2]))
-                                           ,expression(paste(Delta[3]))
-                                           ,expression(paste(Delta[4]))), ...)
+plotIndv=function(combo, mylab='', xlabel = c(expression(paste(delta[1]))
+                                           ,expression(paste(delta[2]))
+                                           ,expression(paste(delta[3]))
+                                           ,expression(paste(delta[4]))), ...)
 {
 #mcol=rainbow(I,start=0,end=.8)
 mcol=rgb(.1,.1,.1,.3)
@@ -143,7 +143,7 @@ mu.alpha1=rcauchy(Mprior,0,.16)
 mu.alpha2=rcauchy(Mprior,0,.16)
 mu.beta1=rcauchy(Mprior,0,.16)
 mu.beta2=rcauchy(Mprior,0,.16)
-g=rinvgamma(Mprior,.5,.5*.01^2)
+g=rinvgamma(Mprior,.5,.5*.1^2)
 pass=1:Mprior
 for (m in 1:Mprior)
 {
@@ -167,34 +167,5 @@ samps <- cbind(a1samp, b1samp, b2samp, a2samp)
 
 return(list(BF=BF,samples=samps))
 }
-
-
-#pdf('ld5.pdf',width=12,height=5)
-par(mfrow=c(1,3),cex=.85,mar=c(4,4,1,1),mgp=c(2,.7,0))
-
-##FIGURE A
-dat=clean()
-plotMean(dat,'A. Means')
-
-##FIGURE B
-#out=doBayes(dat, keep = 10000:100000)
-#save(file='ld5.Rdata',out)
-myMeans=tapply(dat$rt,list(dat$sub,dat$stim),mean)
-diffs=apply(myMeans,1,diff)
-a1=diffs[1,]
-b1=diffs[2,]
-a2=-diffs[4,]
-b2=-diffs[5,]
-combo=cbind(a1,b1,a2,b2)
-plotIndv(combo,'B. Observed Values',ylim=c(-60,200)
-         , xlabel = c(expression(paste(hat(Delta)[1]))
-             ,expression(paste(hat(Delta)[2]))
-             ,expression(paste(hat(Delta)[3]))
-             ,expression(paste(hat(Delta)[4]))))
-
-##FIGURE C
-#results from doBayes function are saved in Rdata object
-load('ld5.Rdata')
-plotIndv(out$samples,'C. Model Estimates',ylim=c(-60,200))
 
 #dev.off()

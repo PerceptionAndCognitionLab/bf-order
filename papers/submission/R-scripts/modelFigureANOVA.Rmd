@@ -1,0 +1,243 @@
+
+```{r anovasettings}
+sd0 <- .6
+sd1 <- .2
+effectsPol <- data.frame("Conservatives" = .5, "Liberals" = .05)
+effectsPol$figType <- "Prediction"
+kern <- convKernel(sigma = 8, k = "gaussian")
+
+nrmlz <- function(mat)
+{
+	tot <- sum(mat)
+	mat/tot
+}
+
+thetaCons <- seq(-1.5, 1.5, .02)
+thetaLib <- seq(-1.5, 1.5, .02)
+
+probs = c(.5, .7, .9, .95)
+myPalette <- rev(c(paste0("grey", round(100*seq(.1, .9, .05)))))
+
+combiThetas <- expand.grid(
+  Liberals = thetaLib
+  , Conservatives = thetaCons
+  , figType = c("Model", "Prediction")
+  , Model = c("Null", "No-prejudice", "Prejudice", "Unconstrained")
+)
+combiThetas$Density <- NA
+
+combiThetasRaw <- expand.grid(
+  Liberals = thetaLib
+  , Conservatives = thetaCons
+)
+nhalf <- nrow(combiThetasRaw)
+nTot <- nhalf * 2
+
+makeTeamBPlot <- function(z, dat, ylab, xlab, breaks, strip = FALSE){
+  # breaks <- exp(c(-11:(-1), -.1))
+  ggplot(mapping = aes(y = Liberals, x = Conservatives, z = eval(parse(text = z)), fill = ..level..)
+         , data = dat
+         ) +
+  # geom_tile(aes(fill = predDensityCookLewandowski)) +
+  stat_contour(geom = "polygon"
+               # , breaks = breaks
+  ) +
+  geom_hline(yintercept = 0, color = "grey70", size = .3, alpha = .3) +
+  geom_vline(xintercept = 0, color = "grey70", size = .3, alpha = .3) +
+  geom_point(data = effectsPol
+             , mapping = aes(x = Conservatives, y = Liberals)
+             , inherit.aes = FALSE
+             , color = "#E41A1C") + 
+  scale_fill_gradientn(colors = myPalette) +
+  xlim(c(min(combiThetas$Conservatives), max(combiThetas$Conservatives))) +
+  ylim(c(min(combiThetas$Liberals), max(combiThetas$Liberals))) +
+  coord_fixed() +
+  labs(x = xlab, y = ylab) +
+  facet_grid(Model ~ figType) + 
+  theme(
+    legend.position = "none"
+    , axis.title.x = if(xlab == "") element_blank() else element_text()
+    , axis.text.x = if(xlab == "") element_blank() else element_text()
+    , axis.ticks.x = if(xlab == "") element_blank() else element_line()
+    , strip.text.x = if(!strip) element_blank() else element_text()
+    , panel.border = element_rect(color = "black", fill = NA)
+    , panel.spacing = unit(rel(10), "points")
+    , strip.text.y = ggplot2::element_text(margin = ggplot2::margin(0, 0, 0, ggplot2::rel(10)))
+  )
+}
+
+# priorEquality <- ggplot(mapping = aes(x = Conservatives, y = Liberals, z = priorDensityEquality), data = combiThetas) +
+#   geom_tile(aes(fill = priorDensityEquality)) +
+#   scale_fill_continuous(low = "white", high = "grey30") +
+#   geom_hline(yintercept = 0, color = "grey70", size = .5) +
+#   geom_vline(xintercept = 0, color = "grey70", size = .5) +
+#   labs(x = "") +
+#   theme(legend.position = "none")
+```
+
+
+```{r first_model_prediction_plot, warning = FALSE}
+nullTruth <- function(theta, sd){
+  dnorm(theta[1], 0, sd) * dnorm(theta[2], 0, sd)
+}
+
+modelDensityNull <- apply(combiThetasRaw
+                                              , 1
+                                              , nullTruth
+                                              , sd = .01)
+# maxModel <- max(combiThetas$DensityNull[1:nhalf])
+
+modelDensityNull <- nrmlz(modelDensityNull)
+
+# combiThetas$DensityNull[(nhalf + 1):nTot] <- apply(combiThetasRaw
+#                                               , 1
+#                                               , nullTruth
+#                                               , sd = sd1)
+# 
+# maxPred <- max(combiThetas$DensityNull[(nhalf + 1):nTot])
+
+mat <- matrix(modelDensityNull, nrow = length(thetaCons), ncol = length(thetaCons))
+predmat <- nrmlz(applyFilter(mat, kern))
+predictionDensityNull <- as.vector(predmat) * 200
+
+combiThetas[combiThetas$figType == "Model" & combiThetas$Model == "Null", "Density"] <- modelDensityNull
+combiThetas[combiThetas$figType == "Prediction" & combiThetas$Model == "Null", "Density"] <- predictionDensityNull
+
+nullmod <- data.frame(x = 0, y = 0, figType = "Model")
+```
+
+```{r disregard_model_prediction_plot, cache = T}
+# Prior Model
+libOnlyTruth <- function(theta, Sigma) dtmvnorm(cbind(theta[2], theta[1])
+                                            , c(0,0), Sigma
+                                            , lower = c(0, -Inf))
+
+modelDensityDisregard <- apply(combiThetasRaw
+                                              , 1
+                                              , libOnlyTruth
+                                              , Sigma = matrix(c(sd0^2, .01^2, .01^2, .01^2), ncol = 2))
+# maxModel <- max(combiThetas$DensityDisregard[1:nhalf])
+modelDensityDisregard <- nrmlz(modelDensityDisregard)
+# /maxModel
+
+# Model Predictions
+
+# combiThetas$DensityDisregard[(nhalf + 1):nTot] <- apply(combiThetasRaw
+#                                                       , 1
+#                                                       , libOnlyTruth
+#                                                       , Sigma = matrix(c(sd1^2 + .01^2, .01^2
+#                                                                          , .01^2, sd0^2 + sd1^2), ncol = 2))
+# maxPred <- max(combiThetas$DensityDisregard[(nhalf + 1):nTot])
+# combiThetas$DensityDisregard[(nhalf + 1):nTot] <- combiThetas$DensityDisregard[(nhalf + 1):nTot]
+# /maxPred
+mat <- matrix(modelDensityDisregard
+              , nrow = length(thetaCons)
+              , ncol = length(thetaCons))
+predmat <- nrmlz(applyFilter(mat, kern))
+predictionDensityDisregard <- as.vector(predmat) * 15
+
+combiThetas[combiThetas$figType == "Model" & combiThetas$Model == "No-prejudice", "Density"] <- modelDensityDisregard
+combiThetas[combiThetas$figType == "Prediction" & combiThetas$Model == "No-prejudice", "Density"] <- predictionDensityDisregard
+```
+
+```{r cook_lewandowski_model_prediction_plot, cache = T}
+#Prior Model 
+oppositeTruth <- function(theta, Sigma){
+  dtnorm(theta[2], 0, sqrt(Sigma), lower = 0) * dtnorm(theta[1], 0, sqrt(Sigma), lower = 0)}
+
+modelDensityCookLewandowski  <- apply(combiThetasRaw
+                                                    , 1
+                                                    , oppositeTruth
+                                                    , Sigma = sd0^2)
+# maxModel <- max(combiThetas$DensityCookLewandowski[1:nhalf])
+modelDensityCookLewandowski <- nrmlz(modelDensityCookLewandowski)
+
+#Model Predictions
+# CookLewandowskiTEffect <- function(theta){
+#   tEffect(theta[2], upper = 0, lower = -Inf) * tEffect(theta[1])}
+# 
+# combiThetas$DensityCookLewandowski[(nhalf + 1):nTot]  <- apply(combiThetasRaw
+#                                                                , 1
+#                                                                , CookLewandowskiTEffect)
+# maxPred <- max(combiThetas$DensityCookLewandowski[(nhalf + 1):nTot])
+mat <- matrix(modelDensityCookLewandowski
+              , nrow = length(thetaCons)
+              , ncol = length(thetaCons))
+predmat <- nrmlz(applyFilter(mat, kern))
+predictionDensityCookLewandowski <- as.vector(predmat) * .9
+# combiThetas$DensityCookLewandowski[(nhalf + 1):nTot] <- combiThetas$DensityCookLewandowski[(nhalf + 1):nTot]
+# /maxPred
+
+combiThetas[combiThetas$figType == "Model" & combiThetas$Model == "Prejudice", "Density"] <- modelDensityCookLewandowski
+combiThetas[combiThetas$figType == "Prediction" & combiThetas$Model == "Prejudice", "Density"] <- predictionDensityCookLewandowski
+```
+
+```{r unconstrained_model_prediction_plot, cache = T}
+# Prior Model
+genTruth <- function(theta, sd){
+  dnorm(theta[1], 0, sd) * dnorm(theta[2], 0, sd)
+}
+
+modelDensityGeneral <- apply(combiThetasRaw
+                                              , 1
+                                              , genTruth
+                                              , sd = sd0)
+modelDensityGeneral <- nrmlz(modelDensityGeneral) *.8
+
+# Model Predictions
+mat <- matrix(modelDensityGeneral
+              , nrow = length(thetaCons)
+              , ncol = length(thetaCons))
+predmat <- nrmlz(applyFilter(mat, kern))
+predictionDensityGeneral <- as.vector(predmat) * .4
+
+combiThetas[combiThetas$figType == "Model" & combiThetas$Model == "Unconstrained", "Density"] <- modelDensityGeneral
+combiThetas[combiThetas$figType == "Prediction" & combiThetas$Model == "Unconstrained", "Density"] <- predictionDensityGeneral
+```
+
+```{r ex1Fig, fig.width = 3.5, fig.height = 7, out.height="8in", fig.cap= "Model (left) and predictions (right) for the combination of two parameters, here the effect of the priming condition and target condition. Darker areas represent higher plausibility of target and prime effects before the data are collected. Predictions take into account sampling noise. The hypothetical data point is best predicted by the Model B with a positive target effect and no prime effect.", fig.align="center"}
+
+# a. The null model predicts no favorability effect. b. The empathetic-response model predicts equal positive favorability effects. c. The confirmation-bias model predicts a positive favorability effect for Liberals and no effect for Conservatives. d. The belief-polarization model predicts a positive favorability effect for Liberals and a negative effect for Conservatives. e. The unconstrained model predicts any combination of favorability effects for Liberals and Conservatives. 
+
+Null <- makeTeamBPlot(z = "Density"
+                          , dat = subset(combiThetas, Model == "Null")
+                          , ylab = ""
+                          , xlab = ""
+                          , breaks = rev(breaksEq)
+                          , strip = TRUE) +
+  geom_point(data = nullmod
+             , mapping = aes(x = x, y = y)
+             , inherit.aes = FALSE
+             , color = "grey10")
+
+Disregard <- makeTeamBPlot(z = "Density"
+                           , dat = subset(combiThetas, Model == "No-prejudice")
+                           , ylab = ""
+                           , xlab = ""
+                           , breaks = rev(breaks))
+
+CookLewandowski <- makeTeamBPlot(z = "Density"
+                                , dat = subset(combiThetas, Model == "Prejudice")
+                                , ylab = ""
+                                , xlab = ""
+                                , breaks = rev(breaks))
+
+General <- makeTeamBPlot(z = "Density"
+                           , dat = subset(combiThetas, Model == "Unconstrained")
+                           , ylab = ""
+                           , xlab = "Target Pleasantness Effect"
+                           , breaks = rev(breaks))
+
+scaler <- 0.91
+
+plot_grid(Null
+          , Disregard
+          , CookLewandowski
+          , General
+          , labels = paste0(LETTERS[1:4], ".")
+          , label_size = 10.5
+          , ncol = 1
+          , rel_heights = c(1/4 * 1.05, rep(1/4 * scaler, 2), 1/4 * 1.13)
+          ) +
+  draw_label("Face Prime Effect", x = 0.095, y = 0.51, size = 11, hjust = 0.5, angle = 90)
+```
