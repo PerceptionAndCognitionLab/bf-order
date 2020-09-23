@@ -438,7 +438,7 @@ Figure \ref{fig:orient}A shows a bias effect, too. Responses to left tilts are s
 The analyses of the strength and bias effects were performed with separate calls  `quid()` function.  The following code loads the data from @Rouder:etal:2010d, cleans it according to the original authors' specifications, and runs the strength analysis.
 
 ```{r,eval=FALSE,echo=TRUE}
-source('lib.R')
+source('https://bit.ly/32Yvlel')
 dat=loadOrientationData()
 strength=codeStrength(dat)
 res.s=quid(id=strength$sub,
