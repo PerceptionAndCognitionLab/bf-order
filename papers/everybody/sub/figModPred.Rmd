@@ -1,0 +1,109 @@
+
+```{r prep-modelfig, cache = TRUE}
+sd0 <- 40
+
+gamma <- seq(-120, 120, .6)
+
+nrmlz <- function(mat)
+{
+  tot <- sum(mat)
+  mat/tot
+}
+
+
+#Conditional model specification
+norm0 <- function(theta1, theta2, Sigma) dnorm(theta1, 30, Sigma) * dnorm(theta2, 30, Sigma)
+norm <- function(theta1, theta2, Sigma) dmvnorm(cbind(theta1, theta2), c(30, 30), Sigma)
+normT1 <- function(theta1, theta2, Sigma, l, u) dtmvnorm(cbind(theta1, theta2)
+                                                   , c(30, 30)
+                                                   , Sigma
+                                                   , lower = rep(l, 2)
+                                                   , upper = rep(u, 2))
+normT <- function(theta1, theta2, Sigma, l , u){
+  dtnorm(theta1, 30, Sigma, lower = l, upper = u) * dtnorm(theta2, 30, Sigma, lower = l, upper = u)
+}
+
+One <- outer(gamma
+                   , gamma
+                   , normT1
+                   , Sigma = matrix(c(sd0^2, sd0^1.999, sd0^1.999, sd0^2)
+                                    , nrow = 2)
+                   , l = 0
+                   , u = Inf) 
+One <- nrmlz(One)
+Pos <- outer(gamma
+                   , gamma
+                   , normT
+                   , sd0
+                   , l = 0
+                   , u = Inf)
+Pos <- nrmlz(Pos)
+General <- outer(gamma
+                 , gamma
+                 , norm
+                 , Sigma = matrix(c(sd0^2, 0, 0, sd0^2)
+                                  , nrow = 2))
+General <- nrmlz(General)
+
+#####Figure
+top1 <- max(One)
+top2 <- max(Pos)
+```
+
+```{r constraint, cache = T, fig.cap= "The three models are shown as bivariate distributions across two individuals. Darker areas show greater concentration of density.", fig.height=3, fig.width=9}
+modFig <- function(mat, par, ylabel, xlabel, main, top, mod
+                   , xax = TRUE, yax = TRUE, modcex = 1.2){
+  image(par
+        , par
+        , mat
+        , col = grey((256:0)/256)
+        , zlim = c(0, top)
+        , axes = FALSE
+        , ylab = ylabel
+        , xlab = xlabel
+        # , frame.plot=FALSE
+        , main = ""
+        , cex.lab = 1.5)
+  box(lwd=1)
+  if(xax == TRUE){
+  axis(1, at = seq(-100, 100, 100), cex.axis = 1.5)}
+  if(yax == TRUE){
+  axis(2, at = seq(-100, 100, 100), cex.axis = 1.5)}
+  abline(h = 0, col = "gray80", lty = "dotted")
+  abline(v = 0, col = "gray80", lty = "dotted")
+  mtext(mod, side = 3, line = 1, cex = modcex)
+  mtext(main, side = 3, line = 1)
+}
+
+# pdf('figModPred.pdf',width=10,height=20)
+# layout(matrix(c(1, 1, 2, 2, 0, 3, 3, 0), ncol = 4, byrow = T))
+layout(matrix(1:3, ncol = 3, byrow = T))
+
+
+par(mar=c(1,6,3.5,0), mgp = c(2.4,.9,0), pty = "s")
+#models
+
+par(mar=c(1.5,6,1,0), mgp = c(2.4,.9,0))
+
+modFig(General, gamma
+       , ylabel = expression(paste(theta[2]))
+       , xlabel = expression(paste(theta[1]))
+       , mod = "A. Unconstrained", top = top2 + .00005, main = ""
+       , xax = TRUE)
+
+modFig(Pos, gamma
+       , ylabel = expression(paste(theta[2])), xlabel = expression(paste(theta[1]))
+       , mod = "B. Positive", top = top2 + .00005, main = ""
+       , xax = T)
+
+modFig(One, gamma
+       , ylabel = expression(paste(theta[2])), xlabel = expression(paste(theta[1]))
+       , mod = "C. Common", top = top1, main = ""
+       , xax = T)
+
+# text(-80, 80, "C.", cex = 1.5)
+
+# par(mar=c(3.5,6,1,0), mgp = c(2.4,.9,0))
+
+```
+
